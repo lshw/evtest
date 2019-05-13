@@ -105,6 +105,7 @@ static const struct query_mode {
 };
 
 static int grab_flag = 0;
+static int char_flag = 0;
 static volatile sig_atomic_t stop = 0;
 
 static void interrupt_handler(int sig)
@@ -931,8 +932,9 @@ static int usage(void)
 {
 	printf("USAGE:\n");
 	printf(" Capture mode:\n");
-	printf("   %s [--grab] /dev/input/eventX\n", program_invocation_short_name);
+	printf("   %s [--grab] [--char] /dev/input/eventX\n", program_invocation_short_name);
 	printf("     --grab  grab the device for exclusive access\n");
+	printf("     --char  char mode\n");
 	printf("\n");
 	printf(" Query mode: (check exit code)\n");
 	printf("   %s --query /dev/input/eventX <type> <value>\n",
@@ -1102,16 +1104,73 @@ static int print_device_info(int fd)
 	return 0;
 }
 
+static int scan2char(int code) {
+  char ret;
+  switch(code) {
+    case KEY_0:ret='0';break;
+    case KEY_1:ret='1';break;
+    case KEY_2:ret='2';break;
+    case KEY_3:ret='3';break;
+    case KEY_4:ret='4';break;
+    case KEY_5:ret='5';break;
+
+    case KEY_6:ret='6';break;
+    case KEY_7:ret='7';break;
+    case KEY_8:ret='8';break;
+    case KEY_9:ret='9';break;
+    case KEY_DOT:ret='.';break;
+    case KEY_COMMA:ret=',';break;
+    case KEY_ENTER:ret=0xa;break;
+    case KEY_SEMICOLON:ret=';';break;
+    case KEY_EQUAL:ret='=';break;
+    case KEY_MINUS:ret='-';break;
+    case KEY_ESC:ret=0x1b;break;
+    case KEY_TAB:ret='\t';break;
+    case KEY_SPACE:ret=' ';break;
+    case KEY_BACKSPACE:ret=9;break;
+    case KEY_A:ret='A';break;
+    case KEY_B:ret='B';break;
+    case KEY_C:ret='C';break;
+    case KEY_D:ret='D';break;
+    case KEY_E:ret='E';break;
+    case KEY_F:ret='F';break;
+    case KEY_G:ret='G';break;
+    case KEY_H:ret='H';break;
+    case KEY_I:ret='I';break;
+    case KEY_J:ret='J';break;
+    case KEY_K:ret='K';break;
+    case KEY_L:ret='L';break;
+    case KEY_M:ret='M';break;
+    case KEY_N:ret='N';break;
+    case KEY_O:ret='O';break;
+    case KEY_P:ret='P';break;
+    case KEY_Q:ret='Q';break;
+    case KEY_R:ret='R';break;
+    case KEY_S:ret='S';break;
+    case KEY_T:ret='T';break;
+    case KEY_U:ret='U';break;
+    case KEY_V:ret='V';break;
+    case KEY_W:ret='W';break;
+    case KEY_X:ret='X';break;
+    case KEY_Y:ret='Y';break;
+    case KEY_Z:ret='Z';break;
+    default: ret=-1;
+  }
+  return ret;
+}
 /**
  * Print device events as they come in.
  *
  * @param fd The file descriptor to the device.
  * @return 0 on success or 1 otherwise.
  */
+char char_buf[200];
+int char_buf_offset=0;
 static int print_events(int fd)
 {
 	struct input_event ev[64];
 	int i, rd;
+	char ch;
 	fd_set rdfs;
 
 	FD_ZERO(&rdfs);
@@ -1152,6 +1211,21 @@ static int print_events(int fd)
 					printf("value %02x\n", ev[i].value);
 				else
 					printf("value %d\n", ev[i].value);
+				if(char_flag==1 && type == EV_KEY && ev[i].value==0) {
+				  ch=scan2char(code);
+				  if(ch!=-1) {
+				    if(ch==0xd || ch ==0xa) {
+				      if(char_buf_offset>0) {
+					char_buf[char_buf_offset]=0;
+					printf("Char: time %ld.%06ld, %s\r\n", ev[i].time.tv_sec, ev[i].time.tv_usec,char_buf);
+					char_buf_offset=0;
+				      }
+				    }else if(char_buf_offset+1<sizeof(char_buf)) {
+				      char_buf[char_buf_offset]=ch;
+				      char_buf_offset++;
+				    }
+				  }
+				}
 			}
 		}
 
@@ -1324,6 +1398,7 @@ static int do_query(const char *device, const char *event_type, const char *keyn
 
 static const struct option long_options[] = {
 	{ "grab", no_argument, &grab_flag, 1 },
+	{ "char", no_argument, &char_flag, 1 },
 	{ "query", no_argument, NULL, MODE_QUERY },
 	{ "version", no_argument, NULL, MODE_VERSION },
 	{ 0, },
